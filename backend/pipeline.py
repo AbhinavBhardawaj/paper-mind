@@ -135,8 +135,22 @@ def run_pipeline(query):
     )
     logger.info(f"[PIPELINE] Top accelerating computed in {time.time() - step_start:.2f}s ({len(top_accelerating)} topics)")
 
-    # Step 11: Prepare response
-    logger.info("[PIPELINE] Step 11: Preparing response...")
+    # Step 11: Generate research gaps via Gemini
+    logger.info("[PIPELINE] Step 11: Generating research gaps...")
+    step_start = time.time()
+    research_gaps = []
+    if generate_research_gaps is not None:
+        try:
+            research_gaps = generate_research_gaps(top_accelerating)
+            logger.info(f"[PIPELINE] Research gaps generated in {time.time() - step_start:.2f}s ({len(research_gaps)} gaps)")
+        except Exception as e:
+            logger.error(f"[PIPELINE] Gap analysis failed: {str(e)}", exc_info=True)
+            research_gaps = [{"error": str(e)}]
+    else:
+        logger.warning("[PIPELINE] gap_analysis module not available, skipping.")
+
+    # Step 12: Prepare response
+    logger.info("[PIPELINE] Step 12: Preparing response...")
     step_start = time.time()
     serializable_papers=[]
     for p in papers:
@@ -159,7 +173,8 @@ def run_pipeline(query):
         "citation_velocity":citation_velocity,
         "momentum":momentum,
         "forecast":forecast,
-        "top_accelerating":top_accelerating
+        "top_accelerating":top_accelerating,
+        "research_gaps":research_gaps,
 
     }
     logger.info(f"[PIPELINE] Response prepared in {time.time() - step_start:.2f}s")
