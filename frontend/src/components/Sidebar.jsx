@@ -6,6 +6,7 @@ const navItems = [
   { label: 'Momentum', icon: 'speed' },
   { label: 'Forecast', icon: 'query_stats' },
   { label: 'Papers', icon: 'description' },
+  { label: 'Gaps', icon: 'travel_explore' },
 ]
 
 export default function Sidebar({ activePage, onNavigate, onNewAnalysis }) {

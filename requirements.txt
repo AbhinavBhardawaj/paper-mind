@@ -6,7 +6,7 @@ scikit-learn
 pandas
 numpy
 python-dotenv
-google-generativeai
+google-genai
 requests
 feedparser
 fastapi
