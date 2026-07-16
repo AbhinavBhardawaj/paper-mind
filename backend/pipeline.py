@@ -18,6 +18,11 @@ try:
 except ImportError:
     run_topic_modeling=None
 
+try:
+    from ml.gap_analysis import generate_research_gaps
+except ImportError:
+    generate_research_gaps=None
+
 def timed_operation(name):
     """Decorator to log timing of operations"""
     def decorator(func):
