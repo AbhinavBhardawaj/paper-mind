@@ -29,3 +29,8 @@ models/
 .env
 .venv/
 venv/
+.env
+.env
+server.log
+result*.json
+__pycache__/

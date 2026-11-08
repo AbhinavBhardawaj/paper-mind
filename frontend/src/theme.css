@@ -1,0 +1,139 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&display=swap');
+
+/* ---------- Design tokens ---------- */
+:root {
+  --bg: #0f1a20;
+  --surface: #16252d;
+  --surface-2: #1d303a;
+  --border: #2a3f4b;
+  --text: #e8eef1;
+  --muted: #93a8b3;
+  --accent: #5cc4b8;
+  --accent-hover: #7bd6cc;
+  --accent-ink: #08201d;
+  --warn: #e3b85c;
+  --good: #6fcf97;
+  --radius: 10px;
+  --font-ui: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+}
+
+/* Optional: add data-theme="light" to <html> in index.html to try this */
+:root[data-theme="light"] {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #eaeff3;
+  --border: #d3dbe2;
+  --text: #15212b;
+  --muted: #5b6d7a;
+  --accent: #1c7c74;
+  --accent-hover: #166a63;
+  --accent-ink: #ffffff;
+  --warn: #9a6b00;
+  --good: #1f7a4a;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  line-height: 1.55;
+}
+
+h1, h2, h3, .topbar-title, .chart-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* ---------- Layout surfaces ---------- */
+.sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+.topbar {
+  border-bottom: 1px solid var(--border);
+}
+
+/* Sentence case instead of small all-caps text */
+.search-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+/* ---------- Buttons ---------- */
+.search-button,
+.sidebar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 12px 24px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: 600 14px/1 var(--font-ui);
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color .15s, transform .05s;
+}
+.sidebar-button { width: 100%; }
+
+.search-button:hover:not(:disabled),
+.sidebar-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.search-button:active:not(:disabled),
+.sidebar-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.search-button:disabled {
+  opacity: .6;
+  cursor: progress;
+}
+
+.search-button:focus-visible,
+.sidebar-button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* ---------- Cards and small elements ---------- */
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.rim-light { box-shadow: none; }
+.metric-label { color: var(--muted); }
+
+.topic-pill {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.shortcut-badge {
+  background: var(--surface-2);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

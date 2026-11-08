@@ -1,114 +1,80 @@
+import logging
+
 from bertopic import BERTopic
 from sentence_transformers import SentenceTransformer
+from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
 from umap import UMAP
 from hdbscan import HDBSCAN
-from sklearn.feature_extraction.text import CountVectorizer, ENGLISH_STOP_WORDS
-import pandas as pd
 
-EMBEDDING_MODEL = SentenceTransformer(
-    "sentence-transformers/all-MiniLM-L6-v2"
-)
+logger = logging.getLogger(__name__)
+
+EMBEDDING_MODEL = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
 RESEARCH_STOP_WORDS = {
     "et", "al", "figure", "method", "paper", "result",
     "approach", "study", "dataset", "model", "learning",
 }
+ALL_STOP_WORDS = set(ENGLISH_STOP_WORDS) | RESEARCH_STOP_WORDS
 
 
 def run_topic_modeling(papers):
+    abstracts = [(p.get("abstract") or p.get("title") or "").strip() for p in papers]
+    n = len(abstracts)
 
-    abstracts = [p["abstract"] for p in papers]
-
-    # Adjust UMAP parameters based on dataset size
-    n_neighbors = max(3, min(15, len(abstracts) - 1))
-    n_components = max(2, min(5, len(abstracts) - 1))
-    
     umap_model = UMAP(
-        n_neighbors=n_neighbors,
-        n_components=n_components,
-        min_dist=0.0,
-        metric="cosine",
-        random_state=42,
-        init="random",
+        n_neighbors=max(3, min(15, n - 1)),
+        n_components=max(2, min(5, n - 1)),
+        min_dist=0.0, metric="cosine", random_state=42, init="random",
     )
-
-    # Adjust HDBSCAN parameters based on dataset size
-    min_cluster_size = max(2, min(15, max(2, len(abstracts) // 10)))
-    
+    size = max(2, min(15, n // 10))
     hdbscan_model = HDBSCAN(
-        min_cluster_size=min_cluster_size,
-        min_samples=1,
-        metric="euclidean",
-        prediction_data=True,
+        min_cluster_size=size, min_samples=1,
+        metric="euclidean", prediction_data=True,
     )
-
-    # Adjust min_topic_size based on dataset size
-    min_topic_size = max(2, min(15, max(2, len(abstracts) // 10)))
-
-    # Use a research-aware vectorizer to remove stop words and capture common n-grams
-    research_stop_words = {
-        "et", "al", "figure", "method", "paper", "result",
-        "approach", "study", "dataset", "model", "learning",
-    }
     vectorizer_model = CountVectorizer(
-        stop_words=list(set(ENGLISH_STOP_WORDS).union(RESEARCH_STOP_WORDS)),
-        ngram_range=(1, 2),
-        min_df=1,
-        max_df=1.0,
-        max_features=500,
+        stop_words=list(ALL_STOP_WORDS),
+        ngram_range=(1, 2), min_df=1, max_df=1.0, max_features=500,
     )
-    
     topic_model = BERTopic(
         embedding_model=EMBEDDING_MODEL,
         umap_model=umap_model,
         hdbscan_model=hdbscan_model,
         vectorizer_model=vectorizer_model,
-        min_topic_size=min_topic_size,
+        min_topic_size=size,
         verbose=False,
     )
 
     try:
-        topics, probs = topic_model.fit_transform(abstracts)
+        topics, _ = topic_model.fit_transform(abstracts)
     except Exception:
-        # BERTopic may fail on very small or noisy inputs.
-        # Fall back to a single general topic so the backend remains stable.
-        for idx in range(len(papers)):
-            papers[idx]["topic_id"] = 0
+        logger.exception("[TOPICS] BERTopic failed; falling back to a single topic")
+        for p in papers:
+            p["topic_id"] = 0
         return papers, {0: ["general"]}
 
-    # Ensure papers list length matches topics list
-    if len(papers) != len(topics):
-        raise ValueError(
-            f"Papers list length ({len(papers)}) does not match topics length ({len(topics)})"
-        )
-    
-    for idx, topic_id in enumerate(topics):
-        papers[idx]["topic_id"] = int(topic_id)
+    if len(topics) != n:
+        raise ValueError(f"Topic count {len(topics)} does not match paper count {n}")
 
-    research_stop_words = {
-        "et", "al", "figure", "method", "paper", "result",
-        "approach", "study", "dataset", "model", "learning",
-    }
+    for p, t in zip(papers, topics):
+        p["topic_id"] = int(t)
+
     topic_labels = {}
-
     for topic_id in topic_model.get_topics():
-
         if topic_id == -1:
             continue
-
-        all_words = topic_model.get_topic(topic_id, full=False)
-        
-        keywords = [
-            word for word, _ in all_words
-            if word.lower() not in ENGLISH_STOP_WORDS
-            and word.lower() not in research_stop_words
-        ]
-        
-        if keywords:
-            keywords = keywords[:5]
-        else:
-            keywords = [word for word, _ in all_words[:5]]
-
-        topic_labels[topic_id] = keywords
+        words = [w for w, _ in topic_model.get_topic(topic_id)]
+        keywords = [w for w in words if w.lower() not in ALL_STOP_WORDS][:5] or words[:5]
+        topic_labels[int(topic_id)] = keywords
 
     return papers, topic_labels
+
+
+def warmup():
+    """Run a tiny job once so numba compilation doesn't hit the first real request."""
+    try:
+        docs = [f"sample abstract {i} about topic {i % 3} neural networks training data"
+                for i in range(20)]
+        run_topic_modeling([{"abstract": d} for d in docs])
+        logger.info("[TOPICS] warmup complete")
+    except Exception:
+        logger.exception("[TOPICS] warmup failed")
