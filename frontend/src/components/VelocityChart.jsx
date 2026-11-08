@@ -1,29 +1,27 @@
-import React from 'react'
-
 function getBarHeight(velocity, maxVelocity) {
   const absVelocity = velocity != null ? Math.abs(Number(velocity)) : 0
   const normalized = maxVelocity > 0 ? absVelocity / maxVelocity : 0
   return Math.max(0.12, normalized)
 }
 
-export default function VelocityChart({ velocity }) {
+export default function VelocityChart({ velocity, compact = false }) {
   const values = Array.isArray(velocity) && velocity.length ? velocity.slice(0, 7) : []
   const safeValues = values.filter((item) => item?.topic_id != null && item?.velocity != null)
   const maxVelocity = safeValues.length ? Math.max(...safeValues.map((item) => Math.abs(Number(item.velocity))), 0.01) : 0.01
 
   return (
-    <div className="glass-card chart-card">
+    <div className={`glass-card chart-card${compact ? ' velocity-chart-compact' : ''}`}>
       <div className="chart-header">
         <h2 className="chart-title">Publication Velocity</h2>
-        <div className="chart-toolbar">
+        {!compact && <div className="chart-toolbar">
           <button type="button">D</button>
           <button type="button">W</button>
           <button type="button">M</button>
-        </div>
+        </div>}
       </div>
       <div className="chart-body">
         {safeValues.length ? (
-          <div className="velocity-bars">
+          <div className="velocity-bars" style={compact ? { gridTemplateColumns: `repeat(${safeValues.length}, minmax(0, 1fr))` } : undefined}>
             {safeValues.map((item) => (
               <div
                 key={item.topic_id}

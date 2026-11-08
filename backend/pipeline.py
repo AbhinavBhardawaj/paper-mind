@@ -74,7 +74,8 @@ def run_pipeline(query):
         "citation_velocity", compute_citation_velocity, papers, min_age_days=0
     )
     momentum = _step("momentum", compute_momentum, velocity, citation_velocity)
-    forecast = _step("forecast", forecast_topics, tfidf_matrix, horizon_windows=4)
+    # Time windows are weekly, so 26 steps gives an approximately six-month horizon.
+    forecast = _step("forecast", forecast_topics, tfidf_matrix, horizon_windows=26)
     top_accelerating = _step(
         "top_accelerating", get_top_accelerating, velocity, topic_map, n=5
     )

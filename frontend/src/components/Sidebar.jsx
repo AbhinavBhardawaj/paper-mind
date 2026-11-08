@@ -1,5 +1,3 @@
-import React from 'react'
-
 const navItems = [
   { label: 'Dashboard', icon: 'dashboard' },
   { label: 'Trends', icon: 'trending_up' },
@@ -9,17 +7,11 @@ const navItems = [
   { label: 'Gaps', icon: 'travel_explore' },
 ]
 
-export default function Sidebar({ activePage, onNavigate, onNewAnalysis }) {
+export default function Sidebar({ activePage, onNavigate, onNewAnalysis, collapsed, user, demo = false }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <img
-          src="https://assets.paper-mind.local/logo-placeholder.png"
-          alt="PaperMind logo"
-          onError={(event) => {
-            event.currentTarget.src = 'https://via.placeholder.com/40/2e5bff/ffffff?text=P'
-          }}
-        />
+        <span className="brand-initial" aria-hidden="true">P</span>
         <div className="sidebar-brand-title">
           <span className="name">PaperMind</span>
           <span className="subtitle">Research Terminal</span>
@@ -32,6 +24,8 @@ export default function Sidebar({ activePage, onNavigate, onNewAnalysis }) {
             key={item.label}
             type="button"
             className={`nav-link ${activePage === item.label ? 'active' : ''}`}
+            title={collapsed ? item.label : undefined}
+            aria-label={collapsed ? item.label : undefined}
             onClick={() => onNavigate(item.label)}
           >
             <span className="material-symbols-outlined">{item.icon}</span>
@@ -41,31 +35,27 @@ export default function Sidebar({ activePage, onNavigate, onNewAnalysis }) {
       </nav>
 
       <div className="sidebar-footer">
-        <button className="sidebar-button" type="button" onClick={onNewAnalysis}>
+        <button className="sidebar-button" type="button" title={collapsed ? 'New Analysis' : undefined} aria-label={collapsed ? 'New Analysis' : undefined} onClick={onNewAnalysis}>
           <span className="material-symbols-outlined">add</span>
-          New Analysis
+          <span className="button-label">New Analysis</span>
         </button>
 
         <div className="sidebar-footer-links">
-          <button className="sidebar-footer-link" type="button" onClick={() => onNavigate('Settings')}>
+          <button className="sidebar-footer-link" type="button" title={collapsed ? 'Settings' : undefined} aria-label={collapsed ? 'Settings' : undefined} onClick={() => onNavigate('Settings')}>
             <span className="material-symbols-outlined">settings</span>
-            Settings
+            <span className="button-label">Settings</span>
           </button>
-          <button className="sidebar-footer-link" type="button" onClick={() => onNavigate('Support')}>
+          <button className="sidebar-footer-link" type="button" title={collapsed ? 'Support' : undefined} aria-label={collapsed ? 'Support' : undefined} onClick={() => onNavigate('Support')}>
             <span className="material-symbols-outlined">help_outline</span>
-            Support
+            <span className="button-label">Support</span>
           </button>
         </div>
 
         <div className="profile-card">
-          <img
-            className="profile-avatar"
-            src="https://images.unsplash.com/photo-1544723795-3fb6469f5b39?auto=format&fit=crop&w=80&q=80"
-            alt="User portrait"
-          />
+          <span className="profile-initial" aria-hidden="true">{user?.email?.[0]?.toUpperCase() ?? 'P'}</span>
           <div className="profile-meta">
-            <span className="name">Dr. Aris Thorne</span>
-            <span className="role">Pro Access</span>
+            <span className="name">{user?.email ?? (demo ? 'Example preview' : 'PaperMind')}</span>
+            <span className="role">{demo ? 'Read-only example' : 'Research workspace'}</span>
           </div>
         </div>
       </div>

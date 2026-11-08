@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { clearAuthSession, readAuthSession } from '../auth/session'
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
@@ -6,6 +7,21 @@ const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+})
+
+apiClient.interceptors.request.use(async (config) => {
+  const token = readAuthSession()?.access_token
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+apiClient.interceptors.response.use((response) => response, async (error) => {
+  if (error.response?.status === 401 && window.location.pathname !== '/login') {
+    clearAuthSession()
+    try { sessionStorage.setItem('papermind.authMessage', 'Your session expired. Sign in again.') } catch { /* storage may be unavailable */ }
+    window.location.assign('/login?next=%2Fapp&reason=expired')
+  }
+  return Promise.reject(error)
 })
 
 export async function runPipeline(query) {
@@ -53,6 +69,6 @@ export async function runPipeline(query) {
     const detail = error.response?.data?.detail
     const message = typeof detail === 'string' ? detail : error.message
     console.error('[API] FETCH_ERROR:', message, error)
-    throw new Error(message)
+    throw new Error(message, { cause: error })
   }
 }

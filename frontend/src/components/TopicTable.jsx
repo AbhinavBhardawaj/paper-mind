@@ -1,6 +1,4 @@
-import React from 'react'
-
-const cardColors = ['#4cd7f6', '#ddb7ff', '#b8c3ff', '#ffb4ab']
+const cardColors = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'var(--navy)']
 
 export default function TopicTable({ topicMap, velocity, momentum, forecast, onViewAll }) {
   let topicIds = Object.keys(topicMap || {}).slice(0, 4)
