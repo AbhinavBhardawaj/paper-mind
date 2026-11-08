@@ -5,20 +5,28 @@ import math
 import os
 import time
 from collections import OrderedDict
-from datetime import date, datetime
+from datetime import date, datetime, time as datetime_time, timedelta, timezone
+from pathlib import Path
 from typing import Any
-import resource
 
-from fastapi import FastAPI, HTTPException
+try:
+    import resource
+except ImportError:
+    resource = None
+
+import jwt
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+
+# Load backend settings regardless of the directory used to launch Uvicorn.
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from backend.pipeline import run_pipeline
 from contextlib import asynccontextmanager
 from ml.topic_modeling import warmup
-
-from dotenv import load_dotenv
-load_dotenv()
 
 @asynccontextmanager
 async def lifespan(app):
@@ -47,10 +55,38 @@ CACHE_MAX = int(os.getenv("CACHE_MAX", 50))
 CACHE: "OrderedDict[str, tuple[Any, float]]" = OrderedDict()
 IN_FLIGHT: dict[str, asyncio.Task] = {}
 PIPELINE_SLOTS = asyncio.Semaphore(int(os.getenv("MAX_CONCURRENT_PIPELINES", 1)))
+bearer_scheme = HTTPBearer(auto_error=False)
+DAILY_NEW_ANALYSIS_LIMIT = 10
+# Process-local by design; counts reset when the API process restarts.
+DAILY_ANALYSIS_COUNTS: dict[tuple[str, date], int] = {}
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+GOOGLE_JWKS = jwt.PyJWKClient("https://www.googleapis.com/oauth2/v3/certs", cache_keys=True)
 
 
 class QueryRequest(BaseModel):
     query: str = Field(..., max_length=200)
+
+
+def current_user_id(credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)) -> str:
+    token = credentials.credentials if credentials else None
+    if not token or not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=401, detail="Sign in to analyze a topic.")
+    try:
+        signing_key = GOOGLE_JWKS.get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["RS256"],
+            audience=GOOGLE_CLIENT_ID,
+            issuer=["accounts.google.com", "https://accounts.google.com"],
+            options={"require": ["exp", "iat", "aud", "sub"]},
+        )
+        user_id = claims.get("sub")
+        if not isinstance(user_id, str) or not user_id or claims.get("email_verified") is not True:
+            raise jwt.InvalidTokenError("Missing or unverified Google identity")
+        return user_id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Sign in to analyze a topic.") from None
 
 
 def _json_default(o: Any):
@@ -97,10 +133,18 @@ async def _compute(query: str):
         raw = await asyncio.to_thread(run_pipeline, query)
         data = _sanitize(json.loads(json.dumps(raw, default=_json_default)))
         elapsed = time.time() - start
-        peak_mb = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+        peak_mb = (
+            resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024
+            if resource is not None
+            else None
+        )
         logger.info(
-            "[PIPELINE] done query=%r in %.1fs papers=%d topics=%d peak_rss=%.0fMB",
-            query, elapsed, len(data.get("papers", [])), len(data.get("topic_map", {})), peak_mb,
+            "[PIPELINE] done query=%r in %.1fs papers=%d topics=%d peak_rss=%s",
+            query,
+            elapsed,
+            len(data.get("papers", [])),
+            len(data.get("topic_map", {})),
+            f"{peak_mb:.0f}MB" if peak_mb is not None else "unavailable",
         )
         # only cache results where citation data was fetched successfully
         if "citation_data_unavailable" not in data.get("warnings", []):
@@ -114,7 +158,7 @@ def health():
 
 
 @app.post("/api/pipeline")
-async def pipeline(request: QueryRequest):
+async def pipeline(request: QueryRequest, user_id: str = Depends(current_user_id)):
     query = request.query.strip().lower()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
@@ -125,6 +169,17 @@ async def pipeline(request: QueryRequest):
 
     task = IN_FLIGHT.get(query)
     if task is None:
+        now = datetime.now(timezone.utc)
+        today = now.date()
+        count_key = (user_id, today)
+        count = DAILY_ANALYSIS_COUNTS.get(count_key, 0)
+        if count >= DAILY_NEW_ANALYSIS_LIMIT:
+            reset_at = datetime.combine(today + timedelta(days=1), datetime_time.min, tzinfo=timezone.utc)
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily limit reached ({DAILY_NEW_ANALYSIS_LIMIT} new analyses). Try again after {reset_at.isoformat()} UTC.",
+            )
+        DAILY_ANALYSIS_COUNTS[count_key] = count + 1
         task = asyncio.create_task(_compute(query))
         IN_FLIGHT[query] = task
         task.add_done_callback(lambda _t, q=query: IN_FLIGHT.pop(q, None))

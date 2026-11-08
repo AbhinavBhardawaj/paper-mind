@@ -354,3 +354,11 @@ PaperPulse helps researchers move from:
 to
 
 **"Where is the field heading next?"**
+
+## Google OAuth setup
+
+PaperMind uses Google Identity Services for sign-in. Create an OAuth 2.0 Client ID with application type **Web application** in Google Cloud Console. Add each frontend origin (for local development, `http://localhost:5173`) to **Authorized JavaScript origins**. Copy the same client ID into `VITE_GOOGLE_CLIENT_ID` in `frontend/.env.local` and `GOOGLE_CLIENT_ID` in `backend/.env`; the API checks the token audience against it. Copy the examples in `frontend/.env.example` and `backend/.env.example`, then restart both servers. The browser client ID is public; never put a Google client secret in the frontend.
+
+From the repository root, install and run the backend with `backend\venv\Scripts\python.exe -m pip install -r requirements.txt` and `backend\venv\Scripts\python.exe -m uvicorn backend.api:app --reload --port 8000`. If you have not created `backend\venv` yet, make it with `py -m venv backend\venv` first. In a second terminal, run `cd frontend`, `npm install`, then `npm run dev -- --force` after dependency changes.
+
+The API validates Google-signed ID tokens against Google's rotating public keys, checks the configured client ID, issuer, expiry, and verified email, then uses Google's stable subject claim for per-user limits. It does not store passwords. `/health` is public and `/api/pipeline` requires sign-in. CORS controls which browser origins may read responses; CORS is not authentication. New uncached analyses are limited to 10 per user per UTC day. The initial counter is held in memory and resets when the API process restarts.

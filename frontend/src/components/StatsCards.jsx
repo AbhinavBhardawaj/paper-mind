@@ -1,5 +1,3 @@
-import React from 'react'
-
 export default function StatsCards({ result }) {
   const papersCount = result?.papers?.length ?? 0
   const activeTopics = result?.topic_map ? Object.keys(result.topic_map).length : 0

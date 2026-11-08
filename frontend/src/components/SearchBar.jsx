@@ -1,8 +1,6 @@
-import React from 'react'
-
-export default function SearchBar({ query, setQuery, onSearch, loading, inputRef }) {
+export default function SearchBar({ query, setQuery, onSearch, loading, inputRef, compact = false }) {
   return (
-    <div className="search-bar">
+    <div className={`search-bar${compact ? ' compact' : ''}`}>
       <div className="search-input-wrapper">
         <span className="search-icon material-symbols-outlined">search</span>
         <input
@@ -20,7 +18,7 @@ export default function SearchBar({ query, setQuery, onSearch, loading, inputRef
         />
         <span className="shortcut-badge">CMD+K</span>
       </div>
-      <button className="search-button" onClick={onSearch} type="button" disabled={loading}>
+      <button className="search-button" onClick={onSearch} type="button" disabled={loading} aria-busy={loading}>
         {loading ? 'Analyzing...' : 'Analyze'}
       </button>
       <span className="search-hint">Press enter to run</span>

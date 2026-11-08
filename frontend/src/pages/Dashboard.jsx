@@ -3,18 +3,21 @@ import Sidebar from '../components/Sidebar'
 import SearchBar from '../components/SearchBar'
 import StatsCards from '../components/StatsCards'
 import VelocityChart from '../components/VelocityChart'
-import MomentumChart from '../components/MomentumChart'
+import MomentumChart, { MomentumCombinations } from '../components/MomentumChart'
 import ForecastChart from '../components/ForecastChart'
 import TopicTable from '../components/TopicTable'
 import { runPipeline } from '../services/api'
 import ResearchGaps from '../components/ResearchGaps'
+import AnalysisLoader from '../components/AnalysisLoader'
+import { Link, useNavigate } from 'react-router-dom'
 
 const PAGE_SIZE = 6
 const SIDEBAR_KEY = 'papermind.sidebarCollapsed'
 
 function readCollapsed() {
   try {
-    return localStorage.getItem(SIDEBAR_KEY) === '1'
+    const saved = localStorage.getItem(SIDEBAR_KEY)
+    return window.innerWidth < 768 || saved === '1'
   } catch {
     return false
   }
@@ -35,57 +38,6 @@ function pageWindow(current, count) {
 const authorsText = (a) => (Array.isArray(a) ? a.join(', ') : a || 'Unknown')
 const dateText = (d) => (d ? String(d).slice(0, 10) : 'Unknown')
 const topicName = (topicMap, id) => topicMap?.[id]?.[0] ?? `Topic ${id ?? '-'}`
-
-function CombinedMomentumCard({ momentum, topicMap, globalIndex }) {
-  const top = [...momentum]
-    .sort((a, b) => Number(b.momentum ?? 0) - Number(a.momentum ?? 0))
-    .slice(0, 3)
-  const maxAbs = Math.max(0.0001, ...top.map((m) => Math.abs(Number(m.momentum ?? 0))))
-
-  return (
-    <div className="glass-card rim-light combined-momentum-card">
-      <div className="chart-header">
-        <h2 className="chart-title">Combined momentum</h2>
-        <span className="material-symbols-outlined">bolt</span>
-      </div>
-      <div className="chart-body momentum-card">
-        <div className="metric-row">
-          <div>
-            <div className="metric-label">Highest topic momentum</div>
-            <div className="metric-value">{globalIndex}</div>
-          </div>
-          <span className="material-symbols-outlined text-primary">trending_up</span>
-        </div>
-        <div className="progress-group">
-          {top.length === 0 && (
-            <p className="metric-label">Run an analysis to see topic momentum.</p>
-          )}
-          {top.map((m) => {
-            const value = Number(m.momentum ?? 0)
-            const label = topicMap?.[m.topic_id]?.slice(0, 2).join(', ') || `Topic ${m.topic_id}`
-            return (
-              <div key={m.topic_id} className="progress-item">
-                <div className="progress-title">
-                  <span>{label}</span>
-                  <span className="font-data-mono">{value.toFixed(2)}</span>
-                </div>
-                <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{
-                      width: `${Math.round((Math.abs(value) / maxAbs) * 100)}%`,
-                      background: value < 0 ? 'var(--warn)' : undefined,
-                    }}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function PapersTable({ papers, topicMap, page, setPage, onDownload }) {
   const pageCount = Math.max(1, Math.ceil(papers.length / PAGE_SIZE))
@@ -168,15 +120,35 @@ function PapersTable({ papers, topicMap, page, setPage, onDownload }) {
   )
 }
 
-export default function Dashboard() {
-  const [query, setQuery] = useState('federated learning')
+export default function Dashboard({ demo = false, sampleResult = null, sampleQuery = '', user = null, onSignOut }) {
+  const navigate = useNavigate()
+  const [query, setQuery] = useState(() => {
+    if (demo) return sampleQuery
+    try {
+      const pending = sessionStorage.getItem('papermind.pendingQuery')
+      return pending || 'federated learning'
+    } catch {
+      return 'federated learning'
+    }
+  })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
+  const [result, setResult] = useState(() => (demo ? sampleResult : null))
   const [activePage, setActivePage] = useState('Dashboard')
   const [papersPage, setPapersPage] = useState(1)
   const [collapsed, setCollapsed] = useState(readCollapsed)
+  const [accountOpen, setAccountOpen] = useState(false)
+  const [searchHelper] = useState(() => [
+    'Follow a field from its foundational papers to its newest ideas.',
+    'Start with a topic you are curious about; the trends will come into focus.',
+    'Explore what researchers are publishing, and where the field may be headed.',
+  ][Math.floor(Math.random() * 3)])
   const inputRef = useRef(null)
+
+  useEffect(() => {
+    if (demo) return
+    try { sessionStorage.removeItem('papermind.pendingQuery') } catch { /* storage may be unavailable */ }
+  }, [demo])
 
   useEffect(() => {
     const handleShortcut = (event) => {
@@ -202,6 +174,7 @@ export default function Dashboard() {
   }
 
   const handleSearch = async () => {
+    if (demo) return
     if (!query.trim()) {
       setError('Enter a research query before analyzing.')
       return
@@ -221,6 +194,10 @@ export default function Dashboard() {
   }
 
   const handleNewAnalysis = () => {
+    if (demo) {
+      navigate('/signup')
+      return
+    }
     setActivePage('Dashboard')
     setResult(null)
     setError('')
@@ -270,11 +247,6 @@ export default function Dashboard() {
     [result, dashboardMomentum]
   )
 
-  const globalIndex = useMemo(() => {
-    if (dashboardMomentum.length === 0) return '—'
-    return Math.max(...dashboardMomentum.map((i) => Number(i?.momentum ?? 0))).toFixed(2)
-  }, [dashboardMomentum])
-
   const maxPredicted = useMemo(
     () => Math.max(0.0001, ...(result?.forecast ?? []).map((f) => Number(f.predicted_score ?? 0))),
     [result]
@@ -315,17 +287,15 @@ export default function Dashboard() {
     />
   )
 
-  const momentumCard = (
-    <CombinedMomentumCard momentum={dashboardMomentum} topicMap={topicMap} globalIndex={globalIndex} />
-  )
-
   return (
-    <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className={`app-shell${collapsed ? ' sidebar-collapsed' : ' sidebar-expanded'}${result ? ' has-results' : ''}${demo ? ' demo-shell' : ''}`}>
       <Sidebar
         activePage={activePage}
         onNavigate={setActivePage}
         onNewAnalysis={handleNewAnalysis}
         collapsed={collapsed}
+        user={user}
+        demo={demo}
       />
       <main className="main">
         <div className="topbar">
@@ -345,34 +315,45 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="topbar-actions">
-            <button type="button" className="icon-circle" aria-label="Notifications">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
-            <button type="button" className="icon-circle" aria-label="Account">
-              <span className="material-symbols-outlined">account_circle</span>
-            </button>
+            {demo ? <Link className="site-button secondary-button" to="/login">Sign in</Link> : (
+              <div className="account-menu-wrap">
+                <button type="button" className="icon-circle" aria-label="Account menu" aria-haspopup="menu" aria-expanded={accountOpen} onClick={() => setAccountOpen((open) => !open)}>
+                  <span className="material-symbols-outlined">account_circle</span>
+                </button>
+                {accountOpen && (
+                  <div className="account-menu" role="menu">
+                    <span className="account-email">{user?.email}</span>
+                    <button type="button" role="menuitem" onClick={async () => { await onSignOut?.(); navigate('/', { replace: true }) }}>Sign out</button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
-        <SearchBar
-          query={query}
-          setQuery={setQuery}
-          onSearch={handleSearch}
-          loading={loading}
-          inputRef={inputRef}
-        />
+        {demo && <div className="demo-banner" role="note">Example data for {sampleQuery}. <Link to="/signup">Create an account to analyze your own topic.</Link></div>}
+
+        {demo ? (
+          <div className="demo-query-bar"><span>Example query</span><strong>{sampleQuery}</strong><Link to="/signup">Analyze your own topic</Link></div>
+        ) : !result && !loading && activePage === 'Dashboard' ? (
+          <section className="search-hub" aria-labelledby="search-hub-title">
+            <h2 id="search-hub-title">What field are we exploring today?</h2>
+            <SearchBar query={query} setQuery={setQuery} onSearch={handleSearch} loading={loading} inputRef={inputRef} />
+            <p className="search-hint">{searchHelper}</p>
+          </section>
+        ) : (
+          <SearchBar query={query} setQuery={setQuery} onSearch={handleSearch} loading={loading} inputRef={inputRef} compact />
+        )}
 
         {error && <div className="error-card" role="alert">{error}</div>}
 
         {loading && (
-          <div className="glass-card empty-state" role="status">
-            Analyzing papers and topics. A new query can take up to 30 seconds.
-          </div>
-        )}
-
-        {!result && !loading && activePage === 'Dashboard' && (
-          <div className="glass-card empty-state">
-            Enter a topic and select Analyze to see publication velocity, momentum, forecasts and research ideas.
+          <div className="glass-card empty-state analysis-loading" role="status" aria-live="polite">
+            <AnalysisLoader />
+            <div className="analysis-loading-copy">
+              <strong>Mapping the research landscape</strong>
+              <p>Collecting papers, calculating topic momentum, and preparing your forecast and research ideas. This may take up to 30 seconds.</p>
+            </div>
           </div>
         )}
 
@@ -382,12 +363,12 @@ export default function Dashboard() {
 
             <section className="charts-grid section-grid">
               <VelocityChart velocity={result?.velocity ?? []} />
-              <MomentumChart momentum={dashboardMomentum} />
+              <MomentumChart momentum={dashboardMomentum} topicMap={topicMap} />
             </section>
 
             <section className="charts-grid section-grid">
-              <ForecastChart forecast={result?.forecast ?? []} />
-              {momentumCard}
+              <ForecastChart forecast={result?.forecast ?? []} topicMap={topicMap} />
+              <MomentumCombinations momentum={dashboardMomentum} topicMap={topicMap} />
             </section>
 
             <TopicTable
@@ -410,7 +391,7 @@ export default function Dashboard() {
             </div>
             <section className="charts-grid section-grid">
               <VelocityChart velocity={result?.velocity ?? []} />
-              <ForecastChart forecast={result?.forecast ?? []} />
+              <ForecastChart forecast={result?.forecast ?? []} topicMap={topicMap} />
             </section>
             <TopicTable
               topicMap={topicMap}
@@ -426,11 +407,11 @@ export default function Dashboard() {
           <div className="page-section">
             <div className="section-heading">
               <h2>Momentum</h2>
-              <p>Topic momentum, combining publication growth and citation growth.</p>
+              <p>See which topics are gaining momentum and which topic pairings have the strongest combined score.</p>
             </div>
             <section className="charts-grid section-grid">
-              <MomentumChart momentum={dashboardMomentum} />
-              {momentumCard}
+              <MomentumChart momentum={dashboardMomentum} topicMap={topicMap} />
+              <MomentumCombinations momentum={dashboardMomentum} topicMap={topicMap} />
             </section>
           </div>
         )}
@@ -439,10 +420,10 @@ export default function Dashboard() {
           <div className="page-section">
             <div className="section-heading">
               <h2>Forecast</h2>
-              <p>Projected topic strength for the coming weeks.</p>
+              <p>Projected topic strength over the coming six months.</p>
             </div>
             <section className="charts-grid section-grid">
-              <ForecastChart forecast={result?.forecast ?? []} />
+              <ForecastChart forecast={result?.forecast ?? []} topicMap={topicMap} />
               <div className="glass-card rim-light combined-momentum-card">
                 <div className="chart-header">
                   <h2 className="chart-title">Predicted topic scores</h2>
@@ -493,16 +474,6 @@ export default function Dashboard() {
               <p>Research ideas based on the main topics in your query.</p>
             </div>
             <ResearchGaps gaps={result?.research_gaps ?? []} warnings={result?.warnings ?? []} />
-          </div>
-        )}
-
-        {activePage === 'Gaps' && (
-          <div className="page-section">
-            <div className="section-heading">
-              <h2>Research Gaps</h2>
-              <p>AI-powered research opportunities identified from the top accelerating topics in your query.</p>
-            </div>
-            <ResearchGaps gaps={result?.research_gaps ?? []} />
           </div>
         )}
 

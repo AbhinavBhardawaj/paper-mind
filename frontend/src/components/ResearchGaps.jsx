@@ -1,5 +1,3 @@
-import React from 'react'
-
 const SCOPE_COLORS = {
   High: 'var(--good)',
   Medium: 'var(--warn)',
@@ -48,13 +46,13 @@ export default function ResearchGaps({ gaps = [], warnings = [] }) {
                 minWidth: '36px',
                 height: '36px',
                 borderRadius: '50%',
-                background: 'var(--accent)',
+                background: 'var(--blue-950)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontWeight: 700,
                 fontSize: '14px',
-                color: 'var(--accent-ink)',
+                color: '#f8fafc',
               }}
             >
               {index + 1}

@@ -3,12 +3,13 @@ import logging
 import os
 import re
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parents[1] / "backend" / ".env")
 logger = logging.getLogger(__name__)
 
 MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")

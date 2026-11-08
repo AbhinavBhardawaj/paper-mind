@@ -10,5 +10,6 @@ google-genai
 requests
 feedparser
 fastapi
+PyJWT>=2.8
 uvicorn
 pytest
