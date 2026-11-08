@@ -6,8 +6,8 @@ import VelocityChart from '../components/VelocityChart'
 import MomentumChart from '../components/MomentumChart'
 import ForecastChart from '../components/ForecastChart'
 import TopicTable from '../components/TopicTable'
-import ResearchGaps from '../components/ResearchGaps'
 import { runPipeline } from '../services/api'
+import ResearchGaps from '../components/ResearchGaps'
 
 const PAGE_SIZE = 6
 const SIDEBAR_KEY = 'papermind.sidebarCollapsed'
@@ -493,6 +493,16 @@ export default function Dashboard() {
               <p>Research ideas based on the main topics in your query.</p>
             </div>
             <ResearchGaps gaps={result?.research_gaps ?? []} warnings={result?.warnings ?? []} />
+          </div>
+        )}
+
+        {activePage === 'Gaps' && (
+          <div className="page-section">
+            <div className="section-heading">
+              <h2>Research Gaps</h2>
+              <p>AI-powered research opportunities identified from the top accelerating topics in your query.</p>
+            </div>
+            <ResearchGaps gaps={result?.research_gaps ?? []} />
           </div>
         )}
 
